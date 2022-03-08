@@ -19,11 +19,12 @@
 
 #include <errno.h>
 
-extern "C" {
+// extern "C" {
 #include "libmodbus/modbus.h"
 #include "libmodbus/modbus-tcp.h"
-}
+// }
 
+#include "spark_wiring_client.h"
 #include "ModbusTCPServer.h"
 
 ModbusTCPServer::ModbusTCPServer() :

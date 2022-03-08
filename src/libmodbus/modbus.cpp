@@ -8,19 +8,60 @@
  * http://libmodbus.org/
  */
 
-#include <stdio.h>
+// #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <stdarg.h>
+#include <string.h>
+#include <assert.h>
 #include <errno.h>
 #include <limits.h>
 #include <time.h>
-#ifndef _MSC_VER
+#define ARDUINO
+#if !defined(_MSC_VER) && !defined(ARDUINO)
 #include <unistd.h>
 #endif
 #ifdef ARDUINO
 #include <stdbool.h>
-#include <Arduino.h>
+#include <Particle.h>
+
+#if defined(_WIN32)
+#  include <winsock2.h>
+#elif defined(ARDUINO)
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#define htonl(x) bswap_32(x)
+#define htons(x) bswap_16(x)
+#define ntohl(x) bswap_32(x)
+#define ntohs(x) bswap_32(x)
+#else
+#define htonl(x) (x)
+#define htons(x) (x)
+#define ntohl(x) (x)
+#define ntohs(x) (x)
+#endif
+#else
+#  include <arpa/inet.h>
+#endif
+
+#if defined(__GNUC__)
+#  define GCC_VERSION (__GNUC__ * 100 + __GNUC_MINOR__ * 10)
+#  if GCC_VERSION >= 430
+// Since GCC >= 4.30, GCC provides __builtin_bswapXX() alternatives so we switch to them
+#    undef bswap_32
+#    define bswap_32 __builtin_bswap32
+#  endif
+#endif
+
+#if !defined(__CYGWIN__) && !defined(bswap_16)
+#ifndef ARDUINO
+#  warning "Fallback on C functions for bswap_16"
+#endif
+static inline uint16_t bswap_16(uint16_t x)
+{
+    return (x >> 8) | (x << 8);
+}
+#endif
 
 #ifndef DEBUG
 #define printf(...) {}
@@ -138,11 +179,11 @@ const char *modbus_strerror(int errnum) {
 void _error_print(modbus_t *ctx, const char *context)
 {
     if (ctx->debug) {
-        fprintf(stderr, "ERROR %s", modbus_strerror(errno));
+        Log.error("ERROR %s", modbus_strerror(errno));
         if (context != NULL) {
-            fprintf(stderr, ": %s\n", context);
+            Log.error(": %s\n", context);
         } else {
-            fprintf(stderr, "\n");
+            Log.error("\n");
         }
     }
 }
@@ -180,7 +221,7 @@ int modbus_flush(modbus_t *ctx)
     rc = ctx->backend->flush(ctx);
     if (rc != -1 && ctx->debug) {
         /* Not all backends are able to return the number of bytes flushed */
-        printf("Bytes flushed (%d)\n", rc);
+        Log.info("Bytes flushed (%d)\n", rc);
     }
     return rc;
 }
@@ -232,8 +273,7 @@ static int send_msg(modbus_t *ctx, uint8_t *msg, int msg_length)
 
     if (ctx->debug) {
         for (i = 0; i < msg_length; i++)
-            printf("[%.2X]", msg[i]);
-        printf("\n");
+            Log.info("[%.2X]", msg[i]);
     }
 
     /* In recovery mode, the write command will be issued until to be
@@ -409,9 +449,9 @@ int _modbus_receive_msg(modbus_t *ctx, uint8_t *msg, msg_type_t msg_type)
 
     if (ctx->debug) {
         if (msg_type == MSG_INDICATION) {
-            printf("Waiting for a indication...\n");
+            Log.info("Waiting for a indication...\n");
         } else {
-            printf("Waiting for a confirmation...\n");
+            Log.info("Waiting for a confirmation...\n");
         }
     }
 
@@ -480,7 +520,7 @@ int _modbus_receive_msg(modbus_t *ctx, uint8_t *msg, msg_type_t msg_type)
         if (ctx->debug) {
             int i;
             for (i=0; i < rc; i++)
-                printf("<%.2X>", msg[msg_length + i]);
+                Log.info("<%.2X>", msg[msg_length + i]);
         }
 
         /* Sums bytes received */
@@ -528,7 +568,7 @@ int _modbus_receive_msg(modbus_t *ctx, uint8_t *msg, msg_type_t msg_type)
     }
 
     if (ctx->debug)
-        printf("\n");
+        Log.info("\n");
 
     return ctx->backend->check_integrity(ctx, msg, msg_length);
 }
@@ -614,7 +654,7 @@ static int check_confirmation(modbus_t *ctx, uint8_t *req,
         /* Check function code */
         if (function != req[offset]) {
             if (ctx->debug) {
-                fprintf(stderr,
+                Log.error(
                         "Received function not corresponding to the request (0x%X != 0x%X)\n",
                         function, req[offset]);
             }
@@ -663,7 +703,7 @@ static int check_confirmation(modbus_t *ctx, uint8_t *req,
             rc = rsp_nb_value;
         } else {
             if (ctx->debug) {
-                fprintf(stderr,
+                Log.error(
                         "Quantity not corresponding to the request (%d != %d)\n",
                         rsp_nb_value, req_nb_value);
             }
@@ -678,7 +718,7 @@ static int check_confirmation(modbus_t *ctx, uint8_t *req,
         }
     } else {
         if (ctx->debug) {
-            fprintf(stderr,
+            Log.error(
                     "Message length not corresponding to the computed length (%d != %d)\n",
                     rsp_length, rsp_length_computed);
         }
@@ -720,10 +760,10 @@ static int response_io_status(uint8_t *tab_io_status,
 }
 
 /* Build the exception response */
-static int response_exception(modbus_t *ctx, sft_t *sft,
+int response_exception(modbus_t *ctx, sft_t *sft,
                               int exception_code, uint8_t *rsp,
                               unsigned int to_flush,
-                              const char* template, ...)
+                              const char* tmplate, ...)
 {
     int rsp_length;
 
@@ -731,8 +771,8 @@ static int response_exception(modbus_t *ctx, sft_t *sft,
     if (ctx->debug) {
         va_list ap;
 
-        va_start(ap, template);
-        vfprintf(stderr, template, ap);
+        va_start(ap, tmplate);
+        Log.error(tmplate, ap);
         va_end(ap);
     }
 
@@ -975,7 +1015,7 @@ int modbus_reply(modbus_t *ctx, const uint8_t *req,
         break;
     case MODBUS_FC_READ_EXCEPTION_STATUS:
         if (ctx->debug) {
-            fprintf(stderr, "FIXME Not implemented\n");
+            Log.error("FIXME Not implemented\n");
         }
         errno = ENOPROTOOPT;
         return -1;
@@ -990,10 +1030,10 @@ int modbus_reply(modbus_t *ctx, const uint8_t *req,
                 address);
         } else {
             uint16_t data = mb_mapping->tab_registers[mapping_address];
-            uint16_t and = (req[offset + 3] << 8) + req[offset + 4];
-            uint16_t or = (req[offset + 5] << 8) + req[offset + 6];
+            uint16_t _and = (req[offset + 3] << 8) + req[offset + 4];
+            uint16_t _or = (req[offset + 5] << 8) + req[offset + 6];
 
-            data = (data & and) | (or & (~and));
+            data = (data & _and) | (_or & (~_and));
             mb_mapping->tab_registers[mapping_address] = data;
             memcpy(rsp, req, req_length);
             rsp_length = req_length;
@@ -1149,7 +1189,7 @@ int modbus_read_bits(modbus_t *ctx, int addr, int nb, uint8_t *dest)
 
     if (nb > MODBUS_MAX_READ_BITS) {
         if (ctx->debug) {
-            fprintf(stderr,
+            Log.error(
                     "ERROR Too many bits requested (%d > %d)\n",
                     nb, MODBUS_MAX_READ_BITS);
         }
@@ -1178,7 +1218,7 @@ int modbus_read_input_bits(modbus_t *ctx, int addr, int nb, uint8_t *dest)
 
     if (nb > MODBUS_MAX_READ_BITS) {
         if (ctx->debug) {
-            fprintf(stderr,
+            Log.error(
                     "ERROR Too many discrete inputs requested (%d > %d)\n",
                     nb, MODBUS_MAX_READ_BITS);
         }
@@ -1205,7 +1245,7 @@ static int read_registers(modbus_t *ctx, int function, int addr, int nb,
 
     if (nb > MODBUS_MAX_READ_REGISTERS) {
         if (ctx->debug) {
-            fprintf(stderr,
+            Log.error(
                     "ERROR Too many registers requested (%d > %d)\n",
                     nb, MODBUS_MAX_READ_REGISTERS);
         }
@@ -1253,7 +1293,7 @@ int modbus_read_registers(modbus_t *ctx, int addr, int nb, uint16_t *dest)
 
     if (nb > MODBUS_MAX_READ_REGISTERS) {
         if (ctx->debug) {
-            fprintf(stderr,
+            Log.error(
                     "ERROR Too many registers requested (%d > %d)\n",
                     nb, MODBUS_MAX_READ_REGISTERS);
         }
@@ -1278,7 +1318,7 @@ int modbus_read_input_registers(modbus_t *ctx, int addr, int nb,
     }
 
     if (nb > MODBUS_MAX_READ_REGISTERS) {
-        fprintf(stderr,
+        Log.error(
                 "ERROR Too many input registers requested (%d > %d)\n",
                 nb, MODBUS_MAX_READ_REGISTERS);
         errno = EMBMDATA;
@@ -1362,7 +1402,7 @@ int modbus_write_bits(modbus_t *ctx, int addr, int nb, const uint8_t *src)
 
     if (nb > MODBUS_MAX_WRITE_BITS) {
         if (ctx->debug) {
-            fprintf(stderr, "ERROR Writing too many bits (%d > %d)\n",
+            Log.error("ERROR Writing too many bits (%d > %d)\n",
                     nb, MODBUS_MAX_WRITE_BITS);
         }
         errno = EMBMDATA;
@@ -1423,7 +1463,7 @@ int modbus_write_registers(modbus_t *ctx, int addr, int nb, const uint16_t *src)
 
     if (nb > MODBUS_MAX_WRITE_REGISTERS) {
         if (ctx->debug) {
-            fprintf(stderr,
+            Log.error(
                     "ERROR Trying to write to too many registers (%d > %d)\n",
                     nb, MODBUS_MAX_WRITE_REGISTERS);
         }
@@ -1515,7 +1555,7 @@ int modbus_write_and_read_registers(modbus_t *ctx,
 
     if (write_nb > MODBUS_MAX_WR_WRITE_REGISTERS) {
         if (ctx->debug) {
-            fprintf(stderr,
+            Log.error(
                     "ERROR Too many registers to write (%d > %d)\n",
                     write_nb, MODBUS_MAX_WR_WRITE_REGISTERS);
         }
@@ -1525,7 +1565,7 @@ int modbus_write_and_read_registers(modbus_t *ctx,
 
     if (read_nb > MODBUS_MAX_WR_READ_REGISTERS) {
         if (ctx->debug) {
-            fprintf(stderr,
+            Log.error(
                     "ERROR Too many registers requested (%d > %d)\n",
                     read_nb, MODBUS_MAX_WR_READ_REGISTERS);
         }
@@ -1886,6 +1926,162 @@ void modbus_mapping_free(modbus_mapping_t *mb_mapping)
     free(mb_mapping->tab_bits);
     free(mb_mapping);
 }
+
+/* Sets many bits from a table of bytes (only the bits between idx and
+   idx + nb_bits are set) */
+void modbus_set_bits_from_bytes(uint8_t *dest, int idx, unsigned int nb_bits,
+                                const uint8_t *tab_byte)
+{
+    unsigned int i;
+    int shift = 0;
+
+    for (i = idx; i < idx + nb_bits; i++) {
+        dest[i] = tab_byte[(i - idx) / 8] & (1 << shift) ? 1 : 0;
+        /* gcc doesn't like: shift = (++shift) % 8; */
+        shift++;
+        shift %= 8;
+    }
+}
+
+/* Gets the byte value from many bits.
+   To obtain a full byte, set nb_bits to 8. */
+uint8_t modbus_get_byte_from_bits(const uint8_t *src, int idx,
+                                  unsigned int nb_bits)
+{
+    unsigned int i;
+    uint8_t value = 0;
+
+    if (nb_bits > 8) {
+        /* Assert is ignored if NDEBUG is set */
+        assert(nb_bits < 8);
+        nb_bits = 8;
+    }
+
+    for (i=0; i < nb_bits; i++) {
+        value |= (src[idx+i] << i);
+    }
+
+    return value;
+}
+
+/* Get a float from 4 bytes (Modbus) without any conversion (ABCD) */
+float modbus_get_float_abcd(const uint16_t *src)
+{
+    float f;
+    uint32_t i;
+
+    i = ntohl(((uint32_t)src[0] << 16) + src[1]);
+    memcpy(&f, &i, sizeof(float));
+
+    return f;
+}
+
+/* Get a float from 4 bytes (Modbus) in inversed format (DCBA) */
+float modbus_get_float_dcba(const uint16_t *src)
+{
+    float f;
+    uint32_t i;
+
+    i = ntohl(bswap_32((((uint32_t)src[0]) << 16) + src[1]));
+    memcpy(&f, &i, sizeof(float));
+
+    return f;
+}
+
+/* Get a float from 4 bytes (Modbus) with swapped bytes (BADC) */
+float modbus_get_float_badc(const uint16_t *src)
+{
+    float f;
+    uint32_t i;
+
+#if defined(ARDUINO) && defined(__AVR__)
+    i = ntohl((uint32_t)((uint32_t)bswap_16(src[0]) << 16) + bswap_16(src[1]));
+#else
+    i = ntohl((uint32_t)(bswap_16(src[0]) << 16) + bswap_16(src[1]));
+#endif
+    memcpy(&f, &i, sizeof(float));
+
+    return f;
+}
+
+/* Get a float from 4 bytes (Modbus) with swapped words (CDAB) */
+float modbus_get_float_cdab(const uint16_t *src)
+{
+    float f;
+    uint32_t i;
+
+    i = ntohl((((uint32_t)src[1]) << 16) + src[0]);
+    memcpy(&f, &i, sizeof(float));
+
+    return f;
+}
+
+/* DEPRECATED - Get a float from 4 bytes in sort of Modbus format */
+float modbus_get_float(const uint16_t *src)
+{
+    float f;
+    uint32_t i;
+
+    i = (((uint32_t)src[1]) << 16) + src[0];
+    memcpy(&f, &i, sizeof(float));
+
+    return f;
+}
+
+/* Set a float to 4 bytes for Modbus w/o any conversion (ABCD) */
+void modbus_set_float_abcd(float f, uint16_t *dest)
+{
+    uint32_t i;
+
+    memcpy(&i, &f, sizeof(uint32_t));
+    i = htonl(i);
+    dest[0] = (uint16_t)(i >> 16);
+    dest[1] = (uint16_t)i;
+}
+
+/* Set a float to 4 bytes for Modbus with byte and word swap conversion (DCBA) */
+void modbus_set_float_dcba(float f, uint16_t *dest)
+{
+    uint32_t i;
+
+    memcpy(&i, &f, sizeof(uint32_t));
+    i = bswap_32(htonl(i));
+    dest[0] = (uint16_t)(i >> 16);
+    dest[1] = (uint16_t)i;
+}
+
+/* Set a float to 4 bytes for Modbus with byte swap conversion (BADC) */
+void modbus_set_float_badc(float f, uint16_t *dest)
+{
+    uint32_t i;
+
+    memcpy(&i, &f, sizeof(uint32_t));
+    i = htonl(i);
+    dest[0] = (uint16_t)bswap_16(i >> 16);
+    dest[1] = (uint16_t)bswap_16(i & 0xFFFF);
+}
+
+/* Set a float to 4 bytes for Modbus with word swap conversion (CDAB) */
+void modbus_set_float_cdab(float f, uint16_t *dest)
+{
+    uint32_t i;
+
+    memcpy(&i, &f, sizeof(uint32_t));
+    i = htonl(i);
+    dest[0] = (uint16_t)i;
+    dest[1] = (uint16_t)(i >> 16);
+}
+
+/* DEPRECATED - Set a float to 4 bytes in a sort of Modbus format! */
+void modbus_set_float(float f, uint16_t *dest)
+{
+    uint32_t i;
+
+    memcpy(&i, &f, sizeof(uint32_t));
+    dest[0] = (uint16_t)i;
+    dest[1] = (uint16_t)(i >> 16);
+}
+
 
 #ifndef HAVE_STRLCPY
 /*

@@ -4,6 +4,7 @@
  *
  * SPDX-License-Identifier: LGPL-2.1+
  */
+#define ARDUINO
 
 #ifdef ARDUINO
 #include <ArduinoRS485.h>
@@ -14,7 +15,7 @@
 #endif
 #endif
 
-#include <stdio.h>
+// #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -341,7 +342,7 @@ static ssize_t _modbus_rtu_send(modbus_t *ctx, const uint8_t *req, int req_lengt
         ssize_t size;
 
         if (ctx->debug) {
-            fprintf(stderr, "Sending request using RTS signal\n");
+            Log.error("Sending request using RTS signal\n");
         }
 
         ctx_rtu->set_rts(ctx, ctx_rtu->rts == MODBUS_RTU_RTS_UP);
@@ -377,7 +378,7 @@ static int _modbus_rtu_receive(modbus_t *ctx, uint8_t *req)
         ctx_rtu->confirmation_to_ignore = FALSE;
         rc = 0;
         if (ctx->debug) {
-            printf("Confirmation to ignore\n");
+            Log.info("Confirmation to ignore\n");
         }
     } else {
         rc = _modbus_receive_msg(ctx, req, MSG_INDICATION);
@@ -396,7 +397,7 @@ static ssize_t _modbus_rtu_recv(modbus_t *ctx, uint8_t *rsp, int rsp_length)
 #elif defined(ARDUINO)
     modbus_rtu_t *ctx_rtu = (modbus_rtu_t*)ctx->backend_data;
 
-    return ctx_rtu->rs485->readBytes(rsp, rsp_length);
+    return ctx_rtu->rs485->readBytes((char *)rsp, rsp_length);
 #else
     return read(ctx->s, rsp, rsp_length);
 #endif
@@ -414,7 +415,7 @@ static int _modbus_rtu_pre_check_confirmation(modbus_t *ctx, const uint8_t *req,
      * request) */
     if (req[0] != rsp[0] && req[0] != MODBUS_BROADCAST_ADDRESS) {
         if (ctx->debug) {
-            fprintf(stderr,
+            Log.error(
                     "The responding slave %d isn't the requested slave %d\n",
                     rsp[0], req[0]);
         }
@@ -439,7 +440,7 @@ static int _modbus_rtu_check_integrity(modbus_t *ctx, uint8_t *msg,
      * CRC computing. */
     if (slave != ctx->slave && slave != MODBUS_BROADCAST_ADDRESS) {
         if (ctx->debug) {
-            printf("Request for slave %d ignored (not %d)\n", slave, ctx->slave);
+            Log.info("Request for slave %d ignored (not %d)\n", slave, ctx->slave);
         }
         /* Following call to check_confirmation handles this error */
         return 0;
@@ -453,7 +454,7 @@ static int _modbus_rtu_check_integrity(modbus_t *ctx, uint8_t *msg,
         return msg_length;
     } else {
         if (ctx->debug) {
-            fprintf(stderr, "ERROR CRC received 0x%0X != CRC calculated 0x%0X\n",
+            Log.error("ERROR CRC received 0x%0X != CRC calculated 0x%0X\n",
                     crc_received, crc_calculated);
         }
 
@@ -483,7 +484,7 @@ static int _modbus_rtu_connect(modbus_t *ctx)
     modbus_rtu_t *ctx_rtu = ctx->backend_data;
 
     if (ctx->debug) {
-        printf("Opening %s at %d bauds (%c, %d, %d)\n",
+        Log.info("Opening %s at %d bauds (%c, %d, %d)\n",
                ctx_rtu->device, ctx_rtu->baud, ctx_rtu->parity,
                ctx_rtu->data_bit, ctx_rtu->stop_bit);
     }
@@ -508,7 +509,7 @@ static int _modbus_rtu_connect(modbus_t *ctx)
     /* Error checking */
     if (ctx_rtu->w_ser.fd == INVALID_HANDLE_VALUE) {
         if (ctx->debug) {
-            fprintf(stderr, "ERROR Can't open the device %s (LastError %d)\n",
+            Log.error("ERROR Can't open the device %s (LastError %d)\n",
                     ctx_rtu->device, (int)GetLastError());
         }
         return -1;
@@ -518,7 +519,7 @@ static int _modbus_rtu_connect(modbus_t *ctx)
     ctx_rtu->old_dcb.DCBlength = sizeof(DCB);
     if (!GetCommState(ctx_rtu->w_ser.fd, &ctx_rtu->old_dcb)) {
         if (ctx->debug) {
-            fprintf(stderr, "ERROR Error getting configuration (LastError %d)\n",
+            Log.error("ERROR Error getting configuration (LastError %d)\n",
                     (int)GetLastError());
         }
         CloseHandle(ctx_rtu->w_ser.fd);
@@ -589,7 +590,7 @@ static int _modbus_rtu_connect(modbus_t *ctx)
     default:
         dcb.BaudRate = CBR_9600;
         if (ctx->debug) {
-            fprintf(stderr, "WARNING Unknown baud rate %d for %s (B9600 used)\n",
+            Log.error("WARNING Unknown baud rate %d for %s (B9600 used)\n",
                     ctx_rtu->baud, ctx_rtu->device);
         }
     }
@@ -646,7 +647,7 @@ static int _modbus_rtu_connect(modbus_t *ctx)
     /* Setup port */
     if (!SetCommState(ctx_rtu->w_ser.fd, &dcb)) {
         if (ctx->debug) {
-            fprintf(stderr, "ERROR Error setting new configuration (LastError %d)\n",
+            Log.error("ERROR Error setting new configuration (LastError %d)\n",
                     (int)GetLastError());
         }
         CloseHandle(ctx_rtu->w_ser.fd);
@@ -672,7 +673,7 @@ static int _modbus_rtu_connect(modbus_t *ctx)
     ctx->s = open(ctx_rtu->device, flags);
     if (ctx->s == -1) {
         if (ctx->debug) {
-            fprintf(stderr, "ERROR Can't open the device %s (%s)\n",
+            Log.error("ERROR Can't open the device %s (%s)\n",
                     ctx_rtu->device, strerror(errno));
         }
         return -1;
@@ -787,7 +788,7 @@ static int _modbus_rtu_connect(modbus_t *ctx)
     default:
         speed = B9600;
         if (ctx->debug) {
-            fprintf(stderr,
+            Log.error(
                     "WARNING Unknown baud rate %d for %s (B9600 used)\n",
                     ctx_rtu->baud, ctx_rtu->device);
         }
@@ -1014,7 +1015,7 @@ int modbus_rtu_set_serial_mode(modbus_t *ctx, int mode)
         }
 #else
         if (ctx->debug) {
-            fprintf(stderr, "This function isn't supported on your platform\n");
+            Log.error("This function isn't supported on your platform\n");
         }
         errno = ENOTSUP;
         return -1;
@@ -1039,7 +1040,7 @@ int modbus_rtu_get_serial_mode(modbus_t *ctx)
         return ctx_rtu->serial_mode;
 #else
         if (ctx->debug) {
-            fprintf(stderr, "This function isn't supported on your platform\n");
+            Log.error("This function isn't supported on your platform\n");
         }
         errno = ENOTSUP;
         return -1;
@@ -1063,7 +1064,7 @@ int modbus_rtu_get_rts(modbus_t *ctx)
         return ctx_rtu->rts;
 #else
         if (ctx->debug) {
-            fprintf(stderr, "This function isn't supported on your platform\n");
+            Log.error("This function isn't supported on your platform\n");
         }
         errno = ENOTSUP;
         return -1;
@@ -1099,7 +1100,7 @@ int modbus_rtu_set_rts(modbus_t *ctx, int mode)
         }
 #else
         if (ctx->debug) {
-            fprintf(stderr, "This function isn't supported on your platform\n");
+            Log.error("This function isn't supported on your platform\n");
         }
         errno = ENOTSUP;
         return -1;
@@ -1124,7 +1125,7 @@ int modbus_rtu_set_custom_rts(modbus_t *ctx, void (*set_rts) (modbus_t *ctx, int
         return 0;
 #else
         if (ctx->debug) {
-            fprintf(stderr, "This function isn't supported on your platform\n");
+            Log.error("This function isn't supported on your platform\n");
         }
         errno = ENOTSUP;
         return -1;
@@ -1149,7 +1150,7 @@ int modbus_rtu_get_rts_delay(modbus_t *ctx)
         return ctx_rtu->rts_delay;
 #else
         if (ctx->debug) {
-            fprintf(stderr, "This function isn't supported on your platform\n");
+            Log.error("This function isn't supported on your platform\n");
         }
         errno = ENOTSUP;
         return -1;
@@ -1175,7 +1176,7 @@ int modbus_rtu_set_rts_delay(modbus_t *ctx, int us)
         return 0;
 #else
         if (ctx->debug) {
-            fprintf(stderr, "This function isn't supported on your platform\n");
+            Log.error("This function isn't supported on your platform\n");
         }
         errno = ENOTSUP;
         return -1;
@@ -1199,12 +1200,12 @@ static void _modbus_rtu_close(modbus_t *ctx)
 #if defined(_WIN32)
     /* Revert settings */
     if (!SetCommState(ctx_rtu->w_ser.fd, &ctx_rtu->old_dcb) && ctx->debug) {
-        fprintf(stderr, "ERROR Couldn't revert to configuration (LastError %d)\n",
+        Log.error("ERROR Couldn't revert to configuration (LastError %d)\n",
                 (int)GetLastError());
     }
 
     if (!CloseHandle(ctx_rtu->w_ser.fd) && ctx->debug) {
-        fprintf(stderr, "ERROR Error while closing handle (LastError %d)\n",
+        Log.error("ERROR Error while closing handle (LastError %d)\n",
                 (int)GetLastError());
     }
 #elif defined(ARDUINO)
@@ -1279,7 +1280,7 @@ static int _modbus_rtu_select(modbus_t *ctx, fd_set *rset,
     while ((s_rc = select(ctx->s+1, rset, NULL, NULL, tv)) == -1) {
         if (errno == EINTR) {
             if (ctx->debug) {
-                fprintf(stderr, "A non blocked signal was caught\n");
+                Log.error("A non blocked signal was caught\n");
             }
             /* Necessary after an error */
             FD_ZERO(rset);
@@ -1343,14 +1344,14 @@ modbus_t* modbus_new_rtu(const char *device,
 #ifndef ARDUINO
     /* Check device argument */
     if (device == NULL || *device == 0) {
-        fprintf(stderr, "The device string is empty\n");
+        Log.error("The device string is empty\n");
         errno = EINVAL;
         return NULL;
     }
 
     /* Check baud argument */
     if (baud == 0) {
-        fprintf(stderr, "The baud rate value must not be zero\n");
+        Log.error("The baud rate value must not be zero\n");
         errno = EINVAL;
         return NULL;
     }

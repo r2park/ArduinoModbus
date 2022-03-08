@@ -20,8 +20,8 @@
 #ifndef _MODBUS_TCP_CLIENT_H_INCLUDED
 #define _MODBUS_TCP_CLIENT_H_INCLUDED
 
-#include <Client.h>
-#include <IPAddress.h>
+#include "spark_wiring_tcpclient.h"
+#include "spark_wiring_ipaddress.h"
 
 #include "ModbusClient.h"
 

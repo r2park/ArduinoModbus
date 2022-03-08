@@ -7,7 +7,7 @@
 
 #ifndef MODBUS_H
 #define MODBUS_H
-
+#define ARDUINO
 /* Add this for macros that defined unix flavor */
 #if (defined(__unix__) || defined(unix)) && !defined(USG)
 #include <sys/param.h>
@@ -32,13 +32,14 @@
 # define MODBUS_API
 #endif
 
-#ifdef  __cplusplus
-# define MODBUS_BEGIN_DECLS  extern "C" {
-# define MODBUS_END_DECLS    }
-#else
+// #ifdef  __cplusplus
+// # define MODBUS_BEGIN_DECLS  extern "C" {
+// # define MODBUS_END_DECLS    }
+// #else
 # define MODBUS_BEGIN_DECLS
 # define MODBUS_END_DECLS
-#endif
+// #endif
+
 
 MODBUS_BEGIN_DECLS
 
@@ -174,6 +175,7 @@ typedef enum
     MODBUS_ERROR_RECOVERY_PROTOCOL      = (1<<2)
 } modbus_error_recovery_mode;
 
+#include "modbus-private.h"
 MODBUS_API int modbus_set_slave(modbus_t* ctx, int slave);
 MODBUS_API int modbus_set_error_recovery(modbus_t *ctx, modbus_error_recovery_mode error_recovery);
 MODBUS_API int modbus_set_socket(modbus_t *ctx, int s);
@@ -278,6 +280,10 @@ MODBUS_API void modbus_set_float_abcd(float f, uint16_t *dest);
 MODBUS_API void modbus_set_float_dcba(float f, uint16_t *dest);
 MODBUS_API void modbus_set_float_badc(float f, uint16_t *dest);
 MODBUS_API void modbus_set_float_cdab(float f, uint16_t *dest);
+int response_exception(modbus_t *ctx, struct _sft *sft,
+                              int exception_code, uint8_t *rsp,
+                              unsigned int to_flush,
+                              const char* tmp, ...);
 
 #ifndef ARDUINO
 #include "modbus-tcp.h"

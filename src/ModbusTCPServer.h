@@ -20,7 +20,7 @@
 #ifndef _MODBUS_TCP_SERVER_H_INCLUDED
 #define _MODBUS_TCP_SERVER_H_INCLUDED
 
-#include <Client.h>
+#include "spark_wiring_tcpclient.h"
 
 #include "ModbusServer.h"
 

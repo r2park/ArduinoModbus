@@ -9,9 +9,7 @@
 #define MODBUS_TCP_PRIVATE_H
 
 #ifdef ARDUINO
-#include <Arduino.h>
-#include <IPAddress.h>
-#include <Client.h>
+#include <Particle.h>
 #endif
 
 #define _MODBUS_TCP_HEADER_LENGTH      7

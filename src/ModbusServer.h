@@ -20,11 +20,11 @@
 #ifndef _MODBUS_SERVER_H_INCLUDED
 #define _MODBUS_SERVER_H_INCLUDED
 
-#include <Arduino.h>
+#include <Particle.h>
 
-extern "C" {
+// extern "C" {
   #include "libmodbus/modbus.h"
-}
+// }
 
 class ModbusServer {
 

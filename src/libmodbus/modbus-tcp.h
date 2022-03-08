@@ -7,6 +7,10 @@
 
 #ifndef MODBUS_TCP_H
 #define MODBUS_TCP_H
+#define ARDUINO
+
+#include "spark_wiring_tcpclient.h"
+#include "spark_wiring_ipaddress.h"
 
 #ifdef ARDUINO
 // check if __has_include ArduinoAPI
@@ -16,8 +20,8 @@
 namespace arduino {
 #  endif
 #endif
-class Client;
-class IPAddress;
+//class Client;
+//class IPAddress;
 #endif
 #ifdef __NEED_NAMESPACE__
 }

@@ -8,6 +8,8 @@
 #ifndef MODBUS_PRIVATE_H
 #define MODBUS_PRIVATE_H
 
+#define HAVE_STRLCPY
+
 #ifndef _MSC_VER
 # include <stdint.h>
 #if defined(ARDUINO) && defined(__AVR__)

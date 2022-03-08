@@ -19,10 +19,10 @@
 
 #include <errno.h>
 
-extern "C" {
+// extern "C" {
 #include "libmodbus/modbus.h"
 #include "libmodbus/modbus-rtu.h"
-}
+// }
 
 #include "ModbusRTUServer.h"
 

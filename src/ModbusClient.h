@@ -20,11 +20,11 @@
 #ifndef _MODBUS_CLIENT_H_INCLUDED
 #define _MODBUS_CLIENT_H_INCLUDED
 
-extern "C" {
+// extern "C" {
   #include "libmodbus/modbus.h"
-}
+// }
 
-#include <Arduino.h>
+#include <Particle.h>
 
 #define COILS             0
 #define DISCRETE_INPUTS   1
