@@ -10,6 +10,10 @@
 
 #define HAVE_STRLCPY
 
+#ifndef ARDUINO
+#define ARDUINO 10800
+#endif
+
 #ifndef _MSC_VER
 # include <stdint.h>
 #if defined(ARDUINO) && defined(__AVR__)

@@ -7,7 +7,11 @@
 
 #ifndef MODBUS_RTU_H
 #define MODBUS_RTU_H
-#define ARDUINO
+
+#ifndef ARDUINO
+#define ARDUINO 10800
+#endif
+
 #include "modbus.h"
 
 MODBUS_BEGIN_DECLS

@@ -4,7 +4,10 @@
  *
  * SPDX-License-Identifier: LGPL-2.1+
  */
-#define ARDUINO
+
+#ifndef ARDUINO
+#define ARDUINO 10800
+#endif
 
 #ifdef ARDUINO
 #include <ArduinoRS485.h>

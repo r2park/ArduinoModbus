@@ -7,7 +7,9 @@
 
 #ifndef MODBUS_RTU_PRIVATE_H
 #define MODBUS_RTU_PRIVATE_H
-#define ARDUINO
+#ifndef ARDUINO
+#define ARDUINO 10800
+#endif
 
 #ifndef _MSC_VER
 #include <stdint.h>

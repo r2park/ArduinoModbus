@@ -4,7 +4,11 @@
  *
  * SPDX-License-Identifier: LGPL-2.1+
  */
-#define ARDUINO
+
+#ifndef ARDUINO
+#define ARDUINO 10800
+#endif
+
 // #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

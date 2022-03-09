@@ -8,6 +8,10 @@
 #ifndef MODBUS_TCP_PRIVATE_H
 #define MODBUS_TCP_PRIVATE_H
 
+#ifndef ARDUINO
+#define ARDUINO 10800
+#endif
+
 #ifdef ARDUINO
 #include <Particle.h>
 #endif

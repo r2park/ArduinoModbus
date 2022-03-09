@@ -18,7 +18,11 @@
 #include <errno.h>
 #include <limits.h>
 #include <time.h>
-#define ARDUINO
+
+#ifndef ARDUINO
+#define ARDUINO 10800
+#endif
+
 #if !defined(_MSC_VER) && !defined(ARDUINO)
 #include <unistd.h>
 #endif
@@ -108,6 +112,7 @@ const unsigned int libmodbus_version_micro = LIBMODBUS_VERSION_MICRO;
 #define MAX_MESSAGE_LENGTH 260
 
 /* 3 steps are used to parse the query */
+/* add step to handle E2000 rs485 echo RMP */
 typedef enum {
     _STEP_FUNCTION,
     _STEP_META,
@@ -267,7 +272,9 @@ static unsigned int compute_response_length_from_request(modbus_t *ctx, uint8_t 
 static int send_msg(modbus_t *ctx, uint8_t *msg, int msg_length)
 {
     int rc;
+    int ec; // echo count
     int i;
+    uint8_t * ecBuf;
 
     msg_length = ctx->backend->send_msg_pre(msg, msg_length);
 
@@ -301,6 +308,60 @@ static int send_msg(modbus_t *ctx, uint8_t *msg, int msg_length)
 
     if (rc > 0 && rc != msg_length) {
         errno = EMBBADDATA;
+        return -1;
+    }
+
+    struct timeval tv;
+    struct timeval *p_tv;
+    fd_set rset;
+    tv.tv_sec = ctx->response_timeout.tv_sec;
+    tv.tv_usec = ctx->response_timeout.tv_usec;
+    p_tv = &tv;
+
+    ec = ctx->backend->select(ctx, &rset, p_tv, msg_length);
+
+    if (ec == -1) {
+        _error_print(ctx, "select");
+        if (ctx->error_recovery & MODBUS_ERROR_RECOVERY_LINK) {
+            int saved_errno = errno;
+
+            if (errno == ETIMEDOUT) {
+                _sleep_response_timeout(ctx);
+                modbus_flush(ctx);
+            } else if (errno == EBADF) {
+                modbus_close(ctx);
+                modbus_connect(ctx);
+            }
+            errno = saved_errno;
+        }
+        return -1;
+    }
+
+    ecBuf = (uint8_t *)malloc(msg_length * sizeof(uint8_t));
+    if (ecBuf == NULL) {
+        errno = ENOMEM;
+        ec = -1;
+    } else {
+        ec = ctx->backend->recv(ctx, ecBuf, msg_length);
+        free(ecBuf);
+    }
+
+    if (ec == 0) {
+        errno = ECONNRESET;
+        ec = -1;
+    }
+
+    if (ec == -1) {
+        _error_print(ctx, "read");
+        if ((ctx->error_recovery & MODBUS_ERROR_RECOVERY_LINK) &&
+            (errno == ECONNRESET || errno == ECONNREFUSED ||
+                errno == EBADF || ENOMEM)) {
+            int saved_errno = errno;
+            modbus_close(ctx);
+            modbus_connect(ctx);
+            /* Could be removed by previous calls */
+            errno = saved_errno;
+        }
         return -1;
     }
 

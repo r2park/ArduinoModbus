@@ -7,7 +7,10 @@
 
 #ifndef MODBUS_TCP_H
 #define MODBUS_TCP_H
-#define ARDUINO
+
+#ifndef ARDUINO
+#define ARDUINO 10800
+#endif
 
 #include "spark_wiring_tcpclient.h"
 #include "spark_wiring_ipaddress.h"

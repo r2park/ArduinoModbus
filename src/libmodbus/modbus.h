@@ -7,7 +7,11 @@
 
 #ifndef MODBUS_H
 #define MODBUS_H
-#define ARDUINO
+
+#ifndef ARDUINO
+#define ARDUINO 10800
+#endif
+
 /* Add this for macros that defined unix flavor */
 #if (defined(__unix__) || defined(unix)) && !defined(USG)
 #include <sys/param.h>
